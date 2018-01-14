@@ -1,0 +1,93 @@
+OOYALA_AUTH_URL = 'http://player.ooyala.com/sas/player_api/v2/authorization/embed_code/%s/%s?device=html5&domain=player.ooyala.com&supportedFormats=m3u8,mp4'
+OOYALA_META_URL = 'http://player.ooyala.com/player_api/v1/content_tree/embed_code/%s/%s?device=android_3plus_sdk'
+OOYALA_KEY = 'gyOGsyOn-jlUkfX-CJ-gUtog7_FX'
+
+def MetadataObjectForURL(url):
+    _, _, vid = url.rpartition('/')
+    uri = OOYALA_META_URL % (OOYALA_KEY, vid)
+    meta = JSON.ObjectFromURL(uri)['content_tree'][vid]
+    return VideoClipObject(
+		title = meta['title'],
+		summary = meta['description'],
+        duration = meta['duration'],
+		thumb = Resource.ContentsOfURLWithFallback(meta['promo_image'])
+	)
+
+@deferred
+def MediaObjectsForURL(url):
+    ret = []
+    # Since adaptive streaming doesn't seem to work with plex do some basic HLS parsing :(
+    _, _, vid = url.rpartition('/')
+    uri = OOYALA_AUTH_URL % (OOYALA_KEY, vid)
+    streams = JSON.ObjectFromURL(uri)['authorization_data'][vid]['streams']
+    for stream in streams:
+        if 'format' in stream['url']:
+            if stream['url']['format'] == 'encoded':
+                video_url = String.Base64Decode(stream['url']['data'])
+    
+    # Videos that are proxied from the other CDN are HLSv4 which requires more work than v3 to work.
+    # For now, just have Plex try and handle them. This might result in lower quality video being played.
+    # (Number of audio channels also unknown and could be 5.1 in some cases)
+    if 'hls/proxy' in video_url:
+        ret.append(
+            MediaObject(
+                protocol = 'hls',
+                container = 'mpegts',
+                video_codec = VideoCodec.H264,
+                audio_codec = AudioCodec.AAC,
+                optimized_for_streaming = True,
+                parts = [
+                        PartObject(
+                            key = HTTPLiveStreamURL(video_url)
+                        )
+                    ]
+                )
+            )
+    else:
+        hls_streams = GetHLSStreams(video_url)
+        
+        for hls_stream in hls_streams:
+            ret.append(MediaObject(
+                    protocol = 'hls',
+                    container = 'mpegts',
+                    video_codec = VideoCodec.H264,
+                    audio_codec = AudioCodec.AAC,
+                    audio_channels = 2,  # some are mono but that's a bug
+                    optimized_for_streaming = True,
+                    bitrate = hls_stream['bitrate'] / 1000,
+                    video_resolution = hls_stream['resolution'],
+                    parts = [
+                        PartObject(
+                            key = HTTPLiveStreamURL(hls_stream['url'])
+                        )
+                    ]
+                )
+            )
+    return ret
+
+# Mostly taken from https://github.com/plexinc-plugins/Services.bundle/blob/master/Contents/Service%20Sets/com.plexapp.plugins.viasat/URL/Viasat%20Play/ServiceCode.pys
+# to make my life a bit easier.
+def GetHLSStreams(url):
+    streams = []
+
+    playList = HTTP.Request(url).content
+    Log.Debug(playList)
+    for line in playList.splitlines():
+        if "TYPE=SUBTITLES" in line:
+            continue
+        if "BANDWIDTH" in line:
+            stream = {}
+            stream["bitrate"] = int(Regex('(?<=BANDWIDTH=)[0-9]+').search(line).group(0))        
+            if "RESOLUTION" in line:
+                stream["resolution"] = int(Regex('(?<=RESOLUTION=)[0-9]+x[0-9]+').search(line).group(0).split("x")[1])
+            else:
+                stream["resolution"] = 0
+        elif ".m3u8" in line:
+            stream["url"] = line
+            streams.append(stream)
+                
+    sorted_streams = sorted(streams, key = lambda stream: stream["bitrate"], reverse = True)        
+    return sorted_streams
+
+def NormalizeURL(url):
+    return url
