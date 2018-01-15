@@ -95,12 +95,14 @@ def EpisodesIndex(season_id, season_num, show_name=''):
     page = 1
     season = ApiRequest('client/seasons/%s/episodes' % season_id, {'page': page})
     episodes = list(season['cards'])
-    while 'next' in season['pagination']:
-        if 'page=0' in season['pagination']['next']:
-            break
-        page += 1
-        season = ApiRequest('client/seasons/%s/episodes' % season_id, {'page': page})
-        episodes.extend(season['cards'])
+    if 'pagination' in season:
+        while 'next' in season['pagination']:
+            # For some reason there's a 'next' even when it's the last page but it will have page=0 in the URL
+            if 'page=0' in season['pagination']['next']:
+                break
+            page += 1
+            season = ApiRequest('client/seasons/%s/episodes' % season_id, {'page': page})
+            episodes.extend(season['cards'])
     
     Log.Debug(' *** Found %d episodes' % len(episodes))
     for ep_num, episode in enumerate(episodes, 1):
