@@ -8,7 +8,7 @@ MAIN_ICON = 'icon-default.png'
 ICON_SHOWS = 'icon-default.png'
 ICON_MOVIES = 'icon-default.png'
 
-API_URL = 'https://api.top-fan.com/api/v3/%s'
+API_URL = 'https://mgm-cms.top-fan.com/api/v3/%s'
 
 # Placeholder media URL for URL service since we don't want a generic ooyala handler
 MEDIAURL = "http://sgc.doesntexist/%s"
