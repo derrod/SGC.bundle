@@ -1,4 +1,6 @@
 # Stargate Command Channel
+import certifi
+import requests
 
 PREFIX = "/video/sgc"
 
@@ -14,8 +16,7 @@ API_URL = 'https://mgm-cms.top-fan.com/api/v3/%s'
 MEDIAURL = "http://sgc.doesntexist/%s"
 
 # Headers of the App
-HTTP.Headers['User-Agent'] = 'Dalvik/2.1.0 (Linux; U; Android 8.0.0; Pixel 2 Build/MXXXX)'
-
+HTTP_HEADERS = {"User-Agent": "Dalvik/2.1.0 (Linux; U; Android 8.0.0; Pixel 2 Build/MXXXX)"}
 
 ####################################################################################################
 def Start():
@@ -31,8 +32,8 @@ def ApiRequest(path, get_params=None):
     # Get OAuth token if we don't have one
     # Tokens are valid for a month and since we get a new one each launch we don't bother with any 401 handling.
     if not oauth_token:
-        response = JSON.ObjectFromURL(API_URL % 'oauth/token?grant_type=client_credentials&client_id=azGpBT617osnitO5z3XHUJ6MDXU9fDMgorVtsjz9hV4Q5Kv8&client_secret=67nnplFNwaXcXtAiOGhycFSM2C896scKUAtFhwvaAUrJ5GI1&language_code=en_US&country_code=US', method='POST')
-        oauth_token = Dict['oauth_token'] = response['access_token']
+        response = requests.post(API_URL % 'oauth/token?grant_type=client_credentials&client_id=azGpBT617osnitO5z3XHUJ6MDXU9fDMgorVtsjz9hV4Q5Kv8&client_secret=67nnplFNwaXcXtAiOGhycFSM2C896scKUAtFhwvaAUrJ5GI1&language_code=en_US&country_code=US', headers=HTTP_HEADERS, verify=certifi.where())
+        oauth_token = Dict['oauth_token'] = response.json()['access_token']
     
     if not get_params:
         get_params = {}
@@ -41,8 +42,8 @@ def ApiRequest(path, get_params=None):
     get_params['language_code'] = 'en_US'
     get_params['country_code'] = 'US'
     params = '&'.join('{}={}'.format(k, v) for k, v in get_params.items())
-    response = JSON.ObjectFromURL(full_url + '?' + params)
-    return response
+    response = requests.get(full_url + '?' + params, headers=HTTP_HEADERS, verify=certifi.where())
+    return response.json()
     
 ####################################################################################################
 @handler(PREFIX, TITLE, MAIN_ICON, MAIN_ART)
